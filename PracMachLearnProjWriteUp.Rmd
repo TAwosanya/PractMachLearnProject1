@@ -1,0 +1,145 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Babatunde Awosanya"
+date: "Sunday, June 22, 2014"
+output: html_document
+---
+
+# Training Data Pre-processing
+The training data which was provided had a total number of 160 variables. Only the variables which were related to the accelerometers were extracted. About 20 variables matched this criteria but the x,y and z components of the accelerometers on the belt, forearm, arm and dumbell were chosen as the final variables on which the models were to be built. This is because the total and the var components would have been a somewhat linear combination of their x,y and z components for the belt, forearm, arm and dumbell. This brings our number of variables now to 13 including the "classe" variable for which we want to predict.
+
+The next thing that was done was to split the data into sub-training and sub-test (cross validation) sets in the ratio of 60% to 40%. Three (3) engines were initialized in order to create 3 sets of training and cross validation sets pairs. The intention is to see how the models behaved separately out of entirely differently randomized training and cross validation data pairs. The codes to process these steps are given below:
+
+```{r, cache=TRUE}
+pml.training <- read.csv("C:/Users/Tunde Awosanya/Documents/R/pml-training.csv", na.strings="", stringsAsFactors=TRUE)
+
+# get columns related to the accelerometers
+# remove the var and total since they are gotten 
+# by the x,y and z components
+
+indx <- grep("acc",names(pml.training))
+pml.training <- pml.training[,c(indx,160)]
+indx1 <- grep("var", names(pml.training))
+indx2 <- grep("total", names(pml.training))
+pml.training <- pml.training[,-c(indx1,indx2)]
+
+# Create 3 sets of sub-training and sub-test sets (cross-validation set)
+# I will use 60% of the training set as sub-training and 40% as cross-validation
+set.seed(1)
+trainIndex1 <- sample(1:nrow(pml.training), round(0.6*nrow(pml.training)))
+pmlTrain1 <- pml.training[trainIndex1,]
+pmlCV1 <- pml.training[-trainIndex1,]
+
+set.seed(2)
+trainIndex2 <- sample(1:nrow(pml.training), round(0.6*nrow(pml.training)))
+pmlTrain2 <- pml.training[trainIndex2,]
+pmlCV2 <- pml.training[-trainIndex2,]
+
+set.seed(3)
+trainIndex3 <- sample(1:nrow(pml.training), round(0.6*nrow(pml.training)))
+pmlTrain3 <- pml.training[trainIndex3,]
+pmlCV3 <- pml.training[-trainIndex3,]
+
+```
+
+# Model Building
+## Linear Discriminant Analysis (LDA)
+The linear discriminant analysis  classification method was applied to the 3 data set pairs and their training error and cross validation error (estimated out of sample error) was obtained by averaging the errors from the 3 pairs. The codes to perform these are given below: 
+
+```{r, cache=TRUE}
+require(caret,quietly=TRUE)
+require(matrixcalc,quietly=TRUE)
+
+############################################################
+###################### lda #################################
+############################################################
+
+m11 <- train(classe~., data=pmlTrain1, method="lda")
+# error for the train model
+trErr11 <- 100 - matrix.trace(confusionMatrix.train(m11)$table)
+# error for the cv data
+pm11 <- predict(m11, pmlCV1)
+cvErr11 <- (1 - confusionMatrix(data=pmlCV1$classe,reference = pm11)$overall[1])*100
+
+m22 <- train(classe~., data=pmlTrain2, method="lda")
+# error for the train model
+trErr22 <- 100 - matrix.trace(confusionMatrix.train(m22)$table)
+# error for the cv data
+pm22 <- predict(m22, pmlCV2)
+cvErr22 <- (1 - confusionMatrix(data=pmlCV2$classe,reference = pm22)$overall[1])*100
+
+m33 <- train(classe~., data=pmlTrain3, method="lda")
+# error for the train model
+trErr33 <- 100 - matrix.trace(confusionMatrix.train(m33)$table)
+# error for the cv data
+pm33 <- predict(m33, pmlCV3)
+cvErr33 <- (1 - confusionMatrix(data=pmlCV3$classe,reference = pm33)$overall[1])*100
+
+```
+
+A table of sample and training and cross validation errors:
+
+```{r}
+model11 <- c(trErr11,cvErr11)
+model22 <- c(trErr22,cvErr22)
+model33 <- c(trErr33,cvErr33)
+averageErrors <- c(mean(c(trErr11,trErr22,trErr33)), mean(c(cvErr11,cvErr22,cvErr33)))
+ldaModelErrorTable <- rbind(model11,model22,model33,averageErrors)
+colnames(ldaModelErrorTable) <- c("Training Error %","Cross Validation Error %")
+row.names(ldaModelErrorTable) <- c("Data Set 1", "Data Set 2", "Data Set 3", "Average Errors")
+ldaModelErrorTable
+```
+
+## Random Forests (RF)
+Similarly, the process for LDA was repeated for RF and the codes and tables for the training and cross validation data sample errors are given below:
+
+```{r, cache=TRUE}
+m1 <- train(classe~., data=pmlTrain1, method="rf")
+# error for the train model
+trErr1 <- 100 - matrix.trace(confusionMatrix.train(m1)$table)
+# error for the cv data
+pm1 <- predict(m1, pmlCV1)
+cvErr1 <- (1 - confusionMatrix(data=pmlCV1$classe,reference = pm1)$overall[1])*100
+
+m2 <- train(classe~., data=pmlTrain2, method="rf")
+# error for the train model
+trErr2 <- 100 - matrix.trace(confusionMatrix.train(m2)$table)
+# error for the cv data
+pm2 <- predict(m2, pmlCV2)
+cvErr2 <- (1 - confusionMatrix(data=pmlCV2$classe,reference = pm2)$overall[1])*100
+
+m3 <- train(classe~., data=pmlTrain3, method="rf")
+# error for the train model
+trErr3 <- 100 - matrix.trace(confusionMatrix.train(m3)$table)
+# error for the cv data
+pm3 <- predict(m3, pmlCV3)
+cvErr3 <- (1 - confusionMatrix(data=pmlCV3$classe,reference = pm3)$overall[1])*100
+
+
+
+```
+
+A table of sample and training and cross validation errors:
+
+```{r}
+model1 <- c(trErr1,cvErr1)
+model2 <- c(trErr2,cvErr2)
+model3 <- c(trErr3,cvErr3)
+averageErrors1 <- c(mean(c(trErr1,trErr2,trErr3)), mean(c(cvErr1,cvErr2,cvErr3)))
+rfModelErrorTable <- rbind(model1,model2,model3,averageErrors1)
+colnames(rfModelErrorTable) <- c("Training Error %","Cross Validation Error %")
+row.names(rfModelErrorTable) <- c("Data Set 1", "Data Set 2", "Data Set 3", "Average Errors")
+rfModelErrorTable
+```
+
+From the tables above above, the RF performs better than the LDA with average estimated out of sample error of about 6%. This is a much significantly different and better result and this is the error we expect to see in the out of sample error and on the future tests. So we employ the RF model to the test set.
+
+# Prediction on the Test set
+We load the test set and pass it to one of the RF model. The output is given below:
+
+```{r, cache=TRUE}
+pml.testing <- read.csv("C:/Users/Tunde Awosanya/Documents/R/pml-testing.csv", na.strings="", stringsAsFactors=TRUE)
+testingPrediction <- predict(m3, pml.testing)
+data.frame(ProblemId=pml.testing[,160], Prediction=testingPrediction)
+```
+
